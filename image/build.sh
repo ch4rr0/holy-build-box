@@ -1,15 +1,6 @@
 #!/bin/bash
 set -e
 
-M4_VERSION=1.4.18
-AUTOCONF_VERSION=2.69
-AUTOMAKE_VERSION=1.16.1
-LIBTOOL_VERSION=2.4.6
-PKG_CONFIG_VERSION=0.29.2
-CCACHE_VERSION=3.5
-CMAKE_VERSION=3.16.4
-CMAKE_MAJOR_VERSION=3.16
-PYTHON_VERSION=2.7.15
 GCC_LIBSTDCXX_VERSION=8.3.0
 ZLIB_VERSION=1.2.11
 OPENSSL_VERSION=1.0.2q
@@ -26,18 +17,6 @@ SKIP_TOOLS=${SKIP_TOOLS:-false}
 SKIP_LIBS=${SKIP_LIBS:-false}
 SKIP_FINALIZE=${SKIP_FINALIZE:-false}
 SKIP_USERS_GROUPS=${SKIP_USERS_GROUPS:-false}
-
-SKIP_SYSTEM_OPENSSL=${SKIP_SYSTEM_OPENSSL:-$SKIP_TOOLS}
-SKIP_SYSTEM_CURL=${SKIP_SYSTEM_CURL:-$SKIP_TOOLS}
-SKIP_M4=${SKIP_M4:-$SKIP_TOOLS}
-SKIP_AUTOCONF=${SKIP_AUTOCONF:-$SKIP_TOOLS}
-SKIP_AUTOMAKE=${SKIP_AUTOMAKE:-$SKIP_TOOLS}
-SKIP_LIBTOOL=${SKIP_LIBTOOL:-$SKIP_TOOLS}
-SKIP_PKG_CONFIG=${SKIP_PKG_CONFIG:-$SKIP_TOOLS}
-SKIP_CCACHE=${SKIP_CCACHE:-$SKIP_TOOLS}
-SKIP_CMAKE=${SKIP_CMAKE:-$SKIP_TOOLS}
-SKIP_PYTHON=${SKIP_PYTHON:-$SKIP_TOOLS}
-SKIP_GIT=${SKIP_GIT:-$SKIP_TOOLS}
 
 SKIP_LIBSTDCXX=${SKIP_LIBSTDCXX:-$SKIP_LIBS}
 SKIP_ZLIB=${SKIP_ZLIB:-$SKIP_LIBS}
@@ -85,7 +64,7 @@ run yum update -y
 run yum install -y curl epel-release tar
 
 header "Installing compiler toolchain"
-if [ `uname -m` != x86_64 ]; then
+if [ `uname -m` != aarch64 -a `uname -m` != x86_64 ]; then
 curl -s https://packagecloud.io/install/repositories/phusion/centos-6-scl-i386/script.rpm.sh | bash
 sed -i 's|$arch|i686|; s|\$basearch|i386|g' $CHROOT/etc/yum.repos.d/phusion*.repo
 DEVTOOLSET_VER=7
@@ -95,271 +74,23 @@ else
 run yum install -y centos-release-scl
 DEVTOOLSET_VER=8
 fi
-run yum install -y devtoolset-${DEVTOOLSET_VER} file patch bzip2 zlib-devel gettext
-
-### OpenSSL (system version, so that we can download from HTTPS servers with SNI)
-
-if ! eval_bool "$SKIP_SYSTEM_OPENSSL"; then
-	header "Installing system OpenSSL $OPENSSL_VERSION"
-	download_and_extract openssl-$OPENSSL_VERSION.tar.gz \
-		openssl-$OPENSSL_VERSION \
-		https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./config --prefix=/hbb --openssldir=/hbb/openssl threads zlib shared
-		run make
-		run make install_sw
-		run strip --strip-all /hbb/bin/openssl
-		run strip --strip-debug /hbb/lib/libssl.so /hbb/lib/libcrypto.so
-		run rm -f /hbb/lib/libssl.a /hbb/lib/libcrypto.a
-		run ln -s /etc/pki/tls/certs/ca-bundle.crt /hbb/openssl/cert.pem
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf openssl-$OPENSSL_VERSION
-fi
-
-
-### Curl (system version, so that we can download from HTTPS servers with SNI)
-
-if ! eval_bool "$SKIP_SYSTEM_CURL"; then
-	header "Installing system Curl $CURL_VERSION"
-	run tar xjf /hbb_build/curl-$CURL_VERSION.tar.bz2
-	echo "Entering /curl-$CURL_VERSION"
-	pushd "curl-$CURL_VERSION" >/dev/null
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --disable-static --disable-debug --enable-optimize \
-			--disable-manual --with-ssl --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt
-		run make -j$MAKE_CONCURRENCY
-		run make install
-		run strip --strip-all /hbb/bin/curl
-		run strip --strip-debug /hbb/lib/libcurl.so
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	hash -r
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf curl-$CURL_VERSION
-fi
-
-
-### m4
-
-if ! eval_bool "$SKIP_M4"; then
-	header "Installing m4 $M4_VERSION"
-	download_and_extract m4-$M4_VERSION.tar.gz \
-		m4-$M4_VERSION \
-		https://ftpmirror.gnu.org/m4/m4-$M4_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --disable-shared --enable-static
-		run make -j$MAKE_CONCURRENCY
-		run make install-strip
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf m4-$M4_VERSION
-fi
-
-
-### autoconf
-
-if ! eval_bool "$SKIP_AUTOCONF"; then
-	header "Installing autoconf $AUTOCONF_VERSION"
-	download_and_extract autoconf-$AUTOCONF_VERSION.tar.gz \
-		autoconf-$AUTOCONF_VERSION \
-		https://ftpmirror.gnu.org/autoconf/autoconf-$AUTOCONF_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --disable-shared --enable-static
-		run make -j$MAKE_CONCURRENCY
-		run make install-strip
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf autoconf-$AUTOCONF_VERSION
-fi
-
-
-### automake
-
-if ! eval_bool "$SKIP_AUTOMAKE"; then
-	header "Installing automake $AUTOMAKE_VERSION"
-	download_and_extract automake-$AUTOMAKE_VERSION.tar.gz \
-		automake-$AUTOMAKE_VERSION \
-		https://ftpmirror.gnu.org/automake/automake-$AUTOMAKE_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --disable-shared --enable-static
-		run make -j$MAKE_CONCURRENCY
-		run make install-strip
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf automake-$AUTOMAKE_VERSION
-fi
-
-
-### libtool
-
-if ! eval_bool "$SKIP_LIBTOOL"; then
-	header "Installing libtool $LIBTOOL_VERSION"
-	download_and_extract libtool-$LIBTOOL_VERSION.tar.gz \
-		libtool-$LIBTOOL_VERSION \
-		https://ftpmirror.gnu.org/libtool/libtool-$LIBTOOL_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --disable-shared --enable-static
-		run make -j$MAKE_CONCURRENCY
-		run make install-strip
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf libtool-$LIBTOOL_VERSION
-fi
-
-
-### pkg-config
-
-if ! eval_bool "$SKIP_PKG_CONFIG"; then
-	header "Installing pkg-config $PKG_CONFIG_VERSION"
-	download_and_extract pkg-config-$PKG_CONFIG_VERSION.tar.gz \
-		pkg-config-$PKG_CONFIG_VERSION \
-		https://pkgconfig.freedesktop.org/releases/pkg-config-$PKG_CONFIG_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --with-internal-glib
-		run rm -f /hbb/bin/*pkg-config
-		run make -j$MAKE_CONCURRENCY install-strip
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf pkg-config-$PKG_CONFIG_VERSION
-fi
-
-
-### ccache
-
-if ! eval_bool "$SKIP_CCACHE"; then
-	header "Installing ccache $CCACHE_VERSION"
-	download_and_extract ccache-$CCACHE_VERSION.tar.gz \
-		ccache-$CCACHE_VERSION \
-		https://samba.org/ftp/ccache/ccache-$CCACHE_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb
-		run make -j$MAKE_CONCURRENCY install
-		run strip --strip-all /hbb/bin/ccache
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf ccache-$CCACHE_VERSION
-fi
-
-
-### CMake
-
-if ! eval_bool "$SKIP_CMAKE"; then
-	header "Installing CMake $CMAKE_VERSION"
-	download_and_extract cmake-$CMAKE_VERSION.tar.gz \
-		cmake-$CMAKE_VERSION \
-		https://cmake.org/files/v$CMAKE_MAJOR_VERSION/cmake-$CMAKE_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb --no-qt-gui --parallel=$MAKE_CONCURRENCY
-		run make -j$MAKE_CONCURRENCY
-		run make install
-		run strip --strip-all /hbb/bin/cmake /hbb/bin/cpack /hbb/bin/ctest
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf cmake-$CMAKE_VERSION
-fi
-
-
-### Git
-
-if ! eval_bool "$SKIP_GIT"; then
-	header "Installing Git $GIT_VERSION"
-	download_and_extract git-$GIT_VERSION.tar.gz \
-		git-$GIT_VERSION \
-		https://mirrors.edge.kernel.org/pub/software/scm/git/git-$GIT_VERSION.tar.gz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run make configure
-		run ./configure --prefix=/hbb --without-tcltk
-		run make -j$MAKE_CONCURRENCY
-		run make install
-		run strip --strip-all /hbb/bin/git
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf git-$GIT_VERSION
-fi
-
-
-### Python
-
-if ! eval_bool "$SKIP_PYTHON"; then
-	header "Installing Python $PYTHON_VERSION"
-	download_and_extract Python-$PYTHON_VERSION.tgz \
-		Python-$PYTHON_VERSION \
-		https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz
-
-	(
-		activate_holy_build_box_deps_installation_environment
-		run ./configure --prefix=/hbb
-		run make -j$MAKE_CONCURRENCY install
-		run strip --strip-all /hbb/bin/python
-		run strip --strip-debug /hbb/lib/python*/lib-dynload/*.so
-	)
-	if [[ "$?" != 0 ]]; then false; fi
-
-	run hash -r
-
-	echo "Leaving source directory"
-	popd >/dev/null
-	run rm -rf Python-$PYTHON_VERSION
-
-	# Install setuptools and pip
-	echo "Installing setuptools and pip..."
-	run curl -OL --fail https://bootstrap.pypa.io/ez_setup.py
-	run python ez_setup.py
-	run rm -f ez_setup.py
-	run easy_install pip
-	run rm -f /setuptools*.zip
-fi
-
+run yum install -y devtoolset-${DEVTOOLSET_VER} \
+                   file \
+                   patch \
+                   bzip2 \
+                   zlib-devel \
+                   gettext \
+                   m4 \
+                   autoconf \
+                   automake \
+                   libtool \
+                   pkgconfig \
+                   ccache \
+                   cmake \
+                   git \
+                   python \
+                   curl \
+                   openssl
 
 ## libstdc++
 
@@ -379,9 +110,45 @@ function install_libstdcxx()
 		run mkdir ../gcc-build
 		echo "+ Entering /gcc-build"
 		cd ../gcc-build
-
+		echo -n "+ Choosing thread header..."
+		target_thread_file=`cc -v 2>&1 | sed -n 's/^Thread model: //p'`
+		case $target_thread_file in
+		    aix)
+			thread_header=config/rs6000/gthr-aix.h
+			;;
+		    dce)
+			thread_header=config/pa/gthr-dce.h
+			;;
+		    lynx)
+			thread_header=config/gthr-lynx.h
+			;;
+		    mipssde)
+			thread_header=config/mips/gthr-mipssde.h
+			;;
+		    posix)
+			thread_header=gthr-posix.h
+			;;
+		    rtems)
+			thread_header=config/gthr-rtems.h
+			;;
+		    single)
+			thread_header=gthr-single.h
+			;;
+		    tpf)
+			thread_header=config/s390/gthr-tpf.h
+			;;
+		    vxworks)
+			thread_header=config/gthr-vxworks.h
+			;;
+		    win32)
+			thread_header=config/i386/gthr-win32.h
+			;;
+		esac
+		echo $thread_header
 		export CFLAGS="$STATICLIB_CFLAGS"
 		export CXXFLAGS="$STATICLIB_CXXFLAGS"
+		sed -i "s/gthr.h/$thread_header/" \
+			../gcc-$GCC_LIBSTDCXX_VERSION/libstdc++-v3/configure
 		../gcc-$GCC_LIBSTDCXX_VERSION/libstdc++-v3/configure \
 			--prefix=$PREFIX --disable-multilib \
 			--disable-libstdcxx-visibility --disable-shared

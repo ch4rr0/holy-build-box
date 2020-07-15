@@ -1,5 +1,5 @@
 function activate_holy_build_box_deps_installation_environment() {
-	if [ `uname -m` != x86_64 ]; then
+	if [ `uname -m` != aarch64 -a `uname -m` != x86_64 ]; then
 		DEVTOOLSET_VER=7
 	else
 		DEVTOOLSET_VER=8
@@ -26,7 +26,7 @@ function activate_holy_build_box() {
 	local EXTRA_SHLIB_CFLAGS="$5"
 	local EXTRA_SHLIB_LDFLAGS="$6"
 
-	if [ `uname -m` != x86_64 ]; then
+	if [ `uname -m` != aarch64 -a `uname -m` != x86_64 ]; then
 		DEVTOOLSET_VER=7
 	else
 		DEVTOOLSET_VER=8
